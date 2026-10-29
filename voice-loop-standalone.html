@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>Voice Loop — Hands-Free Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b100e;
+        --panel: #131a17;
+        --panel-2: #18211d;
+        --line: #26312c;
+        --line-strong: #3a4741;
+        --text: #f2f5f3;
+        --muted: #9db0a6;
+        --faint: #6d8177;
+        --green: #34d399;
+        --green-dark: #06281c;
+        --amber: #fbbf24;
+        --red: #f87171;
+        --robert-bubble: #173a2c;
+        --claude-bubble: #1b2320;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Public Sans", "Segoe UI", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+      main {
+        margin: 0 auto;
+        max-width: 760px;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 20px 20px 28px;
+      }
+
+      /* Embedded warning */
+      #embedWarning {
+        display: none;
+        border: 1px solid #7c2d12;
+        background: #2a1408;
+        color: #fed7aa;
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin-bottom: 20px;
+        font-size: 16px;
+        line-height: 1.55;
+      }
+      #embedWarning strong { color: #fff7ed; display: block; font-size: 17px; margin-bottom: 4px; }
+      body.embedded #embedWarning { display: block; }
+
+      /* Top row */
+      .toprow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .wordmark {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .bridgeBtn {
+        background: none;
+        border: 1px solid var(--line-strong);
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 8px 16px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .bridgeBtn:active { background: var(--panel-2); }
+      .bridgeDot { width: 9px; height: 9px; border-radius: 999px; background: var(--faint); display: inline-block; }
+      .bridgeDot.ok { background: var(--green); }
+      .bridgeDot.bad { background: var(--red); }
+
+      /* Status */
+      .statusBlock { text-align: center; padding: 30px 0 6px; }
+      .statusRow { display: flex; align-items: center; justify-content: center; gap: 14px; }
+      .statusDot {
+        width: 20px; height: 20px; border-radius: 999px;
+        background: var(--faint); flex: none;
+      }
+      .statusDot.pulse { animation: pulse 1.6s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+      @media (prefers-reduced-motion: reduce) { .statusDot.pulse { animation: none; } }
+      #statusLabel { font-size: clamp(34px, 7vw, 46px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+      #statusSub { margin: 12px auto 0; max-width: 520px; color: var(--muted); font-size: 17px; line-height: 1.5; }
+      #lastAction { margin: 10px auto 0; color: var(--faint); font-size: 13.5px; min-height: 20px; }
+
+      /* Blocked help */
+      #blockedHelp {
+        display: none;
+        margin-top: 18px;
+        border: 1px solid #7f1d1d;
+        background: #22100f;
+        border-radius: 10px;
+        padding: 16px 18px;
+        text-align: left;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: #fecaca;
+      }
+      #blockedHelp strong { color: #fff; }
+      #blockedHelp ol { margin: 8px 0 0; padding-left: 22px; }
+      body.blocked #blockedHelp { display: block; }
+
+      /* Start / Stop */
+      .controls { margin-top: 22px; }
+      #startBtn {
+        width: 100%;
+        border: none;
+        border-radius: 14px;
+        background: var(--green);
+        color: var(--green-dark);
+        font: inherit;
+        font-size: 26px;
+        font-weight: 800;
+        padding: 24px 20px;
+        cursor: pointer;
+      }
+      #startBtn:active { background: #2bbd87; }
+      #stopBtn {
+        width: 100%;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background: var(--panel);
+        color: var(--text);
+        font: inherit;
+        font-size: 18px;
+        font-weight: 700;
+        padding: 16px 20px;
+        cursor: pointer;
+        display: none;
+      }
+      #stopBtn:active { background: var(--panel-2); }
+      .testRow { text-align: center; margin-top: 12px; }
+      #testVoiceBtn {
+        background: none; border: none; color: var(--faint);
+        font: inherit; font-size: 14.5px; text-decoration: underline;
+        text-underline-offset: 4px; cursor: pointer; padding: 6px;
+      }
+
+      /* Setup panel */
+      #setupPanel {
+        margin-top: 26px;
+        border: 1px solid var(--line-strong);
+        background: var(--panel);
+        border-radius: 12px;
+        padding: 22px;
+      }
+      #setupPanel h2 { margin: 0 0 6px; font-size: 21px; font-weight: 800; }
+      #setupPanel p { margin: 0 0 16px; color: var(--muted); font-size: 16px; line-height: 1.55; }
+      #setupPanel label { display: block; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+      #bridgeInput {
+        width: 100%;
+        background: #0d1311;
+        border: 1px solid var(--line-strong);
+        border-radius: 10px;
+        color: var(--text);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 14.5px;
+        padding: 14px;
+        word-break: break-all;
+      }
+      #bridgeInput:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+      #setupError { display: none; color: var(--red); font-size: 15px; margin-top: 10px; line-height: 1.5; }
+      .setupActions { display: flex; gap: 10px; margin-top: 16px; }
+      #saveBridgeBtn {
+        flex: 1;
+        border: none; border-radius: 10px;
+        background: var(--green); color: var(--green-dark);
+        font: inherit; font-size: 18px; font-weight: 800;
+        padding: 15px; cursor: pointer;
+      }
+      #cancelBridgeBtn {
+        border: 1px solid var(--line-strong); border-radius: 10px;
+        background: none; color: var(--muted);
+        font: inherit; font-size: 16px; font-weight: 600;
+        padding: 15px 20px; cursor: pointer; display: none;
+      }
+
+      /* Conversation */
+      #conversationWrap { margin-top: 30px; flex: 1; display: flex; flex-direction: column; }
+      .convHead {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+        border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 18px;
+      }
+      .convHead h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+      #bridgeState { font-size: 13px; color: var(--faint); text-align: right; }
+      #emptyState { color: var(--muted); text-align: center; font-size: 16.5px; line-height: 1.6; padding: 18px 10px; }
+      #messageList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+      .msg { max-width: 88%; padding: 13px 16px 14px; border-radius: 14px; }
+      .msg.robert { align-self: flex-end; background: var(--robert-bubble); border-bottom-right-radius: 4px; }
+      .msg.Muse { align-self: flex-start; background: var(--claude-bubble); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+      .msg .meta { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .msg .meta .time { font-family: "IBM Plex Mono", monospace; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
+      .msg .pendingTag { color: var(--amber); letter-spacing: 0.04em; }
+      .msg p { margin: 6px 0 0; font-size: 18.5px; line-height: 1.5; overflow-wrap: break-word; }
+      .msg.pending { opacity: 0.75; }
+
+      /* Typed fallback */
+      .typedBar { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 18px; }
+      .typedBar .hint { color: var(--faint); font-size: 14px; margin: 0 0 10px; }
+      .typedRow { display: flex; gap: 10px; }
+      #typedInput {
+        flex: 1; min-width: 0;
+        background: #0d1311; border: 1px solid var(--line-strong);
+        border-radius: 11px; color: var(--text);
+        font: inherit; font-size: 16.5px; padding: 14px 16px;
+      }
+      #typedInput::placeholder { color: var(--faint); }
+      #typedInput:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+      #typedSendBtn {
+        flex: none;
+        border: none; border-radius: 11px;
+        background: #22312b; color: var(--text);
+        font: inherit; font-size: 16.5px; font-weight: 700;
+        padding: 14px 22px; cursor: pointer;
+      }
+      #typedSendBtn:active { background: #2b4036; }
+
+      /* How it works */
+      .howItWorks { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 15px; line-height: 1.65; }
+      .howItWorks h3 { color: var(--text); font-size: 16px; margin: 0 0 8px; }
+      .howItWorks ol { margin: 0; padding-left: 22px; }
+      .howItWorks li { margin-bottom: 5px; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="embedWarning" role="alert">
+        <strong>You are viewing this inside a preview panel — the microphone will not work here.</strong>
+        A page embedded inside another page is not allowed to ask for the mic, and Chrome refuses it silently.
+        Open this page from its own link in a full Chrome tab (desktop or Android), then tap Start listening.
+      </div>
+
+      <div class="toprow">
+        <span class="wordmark">Voice Loop</span>
+        <button type="button" class="bridgeBtn" id="bridgeSettingsBtn" aria-label="Bridge settings">
+          <span class="bridgeDot" id="bridgeDot" aria-hidden="true"></span> Bridge
+        </button>
+      </div>
+
+      <!-- Setup panel -->
+      <section id="setupPanel" aria-label="Bridge setup">
+        <h2 id="setupTitle">One-time setup</h2>
+        <p>Paste the bridge address Muse gave you. You only do this once.</p>
+        <label for="bridgeInput">Bridge address</label>
+        <input id="bridgeInput" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+               placeholder="https://script.google.com/macros/s/…/exec" />
+        <p id="setupError" role="alert"></p>
+        <div class="setupActions">
+          <button type="button" id="saveBridgeBtn">Save</button>
+          <button type="button" id="cancelBridgeBtn">Cancel</button>
+        </div>
+      </section>
+
+      <!-- Main terminal -->
+      <div id="mainView" class="hidden">
+        <div class="statusBlock">
+          <div class="statusRow">
+            <span class="statusDot" id="statusDot" aria-hidden="true"></span>
+            <span id="statusLabel" role="status" aria-live="polite">Idle</span>
+          </div>
+          <p id="statusSub">One tap starts hands-free listening. After that, no buttons — just talk.</p>
+          <p id="lastAction" class="mono" aria-live="polite"></p>
+          <div id="blockedHelp">
+            <strong>The microphone is blocked.</strong> Chrome only asks for the mic on a page
+            running as its own full tab — which this page is, when opened from its own link.
+            <ol>
+              <li>Tap <strong>Start listening</strong> again and choose <strong>Allow</strong> on the prompt.</li>
+              <li>No prompt? Click the lock / tune icon in Chrome's address bar → <strong>Site settings</strong> → <strong>Microphone</strong> → <strong>Allow</strong>, then tap Start again.</li>
+              <li>Still nothing? You may be viewing this inside an app's preview panel instead of a Chrome tab — open the page's own link in Chrome.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button type="button" id="startBtn">Start listening</button>
+          <button type="button" id="stopBtn">Stop</button>
+          <div class="testRow">
+            <button type="button" id="testVoiceBtn">Test the speaker</button>
+          </div>
+        </div>
+
+        <section id="conversationWrap" aria-label="Conversation">
+          <div class="convHead">
+            <h2>Conversation</h2>
+            <span id="bridgeState" class="mono">Bridge: not checked yet</span>
+          </div>
+          <p id="emptyState">Nothing yet. Tap Start listening and say something — your words appear here, and the reply is read aloud the moment it lands.</p>
+          <ul id="messageList"></ul>
+          <div id="listEnd"></div>
+        </section>
+
+        <div class="typedBar">
+          <p class="hint">No mic handy? Type instead — it goes to the same place.</p>
+          <div class="typedRow">
+            <input id="typedInput" type="text" placeholder="Type a message instead" aria-label="Type a message instead" />
+            <button type="button" id="typedSendBtn">Send</button>
+          </div>
+        </div>
+
+        <div class="howItWorks">
+          <h3>How this works</h3>
+          <ol>
+            <li>You talk. This page writes your words through the bridge into the shared sheet.</li>
+            <li>Muse reads the sheet, answers in the sheet, and the answer flows back here.</li>
+            <li>The page speaks the answer out loud, then listens again. While it speaks, it stops listening, so it never answers itself.</li>
+          </ol>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+
+        // ---------- Embedded detection ----------
+        try {
+          if (window.self !== window.top) document.body.classList.add("embedded");
+        } catch (e) {
+          document.body.classList.add("embedded");
+        }
+
+        // ---------- Elements ----------
+        var setupPanel = document.getElementById("setupPanel");
+        var setupTitle = document.getElementById("setupTitle");
+        var bridgeInput = document.getElementById("bridgeInput");
+        var setupError = document.getElementById("setupError");
+        var saveBridgeBtn = document.getElementById("saveBridgeBtn");
+        var cancelBridgeBtn = document.getElementById("cancelBridgeBtn");
+        var mainView = document.getElementById("mainView");
+        var bridgeSettingsBtn = document.getElementById("bridgeSettingsBtn");
+        var bridgeDot = document.getElementById("bridgeDot");
+        var bridgeState = document.getElementById("bridgeState");
+        var statusDot = document.getElementById("statusDot");
+        var statusLabel = document.getElementById("statusLabel");
+        var statusSub = document.getElementById("statusSub");
+        var lastAction = document.getElementById("lastAction");
+        var startBtn = document.getElementById("startBtn");
+        var stopBtn = document.getElementById("stopBtn");
+        var testVoiceBtn = document.getElementById("testVoiceBtn");
+        var emptyState = document.getElementById("emptyState");
+        var messageList = document.getElementById("messageList");
+        var listEnd = document.getElementById("listEnd");
+        var typedInput = document.getElementById("typedInput");
+        var typedSendBtn = document.getElementById("typedSendBtn");
+
+        // ---------- State ----------
+        var DEFAULT_BRIDGE_URL = "https://script.google.com/macros/s/AKfycbygWLfIGD2BigMLS9tbe3UWgVJlDTHpNuTm1_FOT_aoBXQR8mWU2rYzi1IJ-5GqGPJjng/exec";
+        var bridgeUrl = "";
+        try { bridgeUrl = localStorage.getItem("vl_bridge") || ""; } catch (e) { bridgeUrl = ""; }
+        if (!bridgeUrl) {
+          bridgeUrl = DEFAULT_BRIDGE_URL;
+          try { localStorage.setItem("vl_bridge", bridgeUrl); } catch (e) {}
+        }
+        var cursor = 0;
+        try {
+          var savedCursor = parseInt(localStorage.getItem("vl_cursor") || "", 10);
+          if (!isNaN(savedCursor) && savedCursor >= 0) cursor = savedCursor;
+        } catch (e) { cursor = 0; }
+
+        var running = false;
+        var userStopped = true;
+        var speaking = false;
+        var speechActive = false;
+        var speechQueue = [];
+        var lastSpoken = "";
+        var recognition = null;
+        var restartTimer = null;
+        var pollTimer = null;
+        var pollInFlight = false;
+        var historySynced = false;
+        var wakeLock = null;
+        var jsonpCounter = 0;
+        var knownRows = {};   // row number -> true
+        var pending = [];      // {el, text} unconfirmed Robert messages
+
+        // ---------- Helpers ----------
+        function saveCursor() {
+          try { localStorage.setItem("vl_cursor", String(cursor)); } catch (e) {}
+        }
+        function nowTimeLabel() {
+          return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        }
+        function displayTime(raw) {
+          if (!raw) return "";
+          var d = new Date(raw);
+          if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+          }
+          return String(raw);
+        }
+        function normalize(s) {
+          return String(s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+        }
+        function isEcho(heard, spoken) {
+          var h = normalize(heard), s = normalize(spoken);
+          if (!h || !s) return false;
+          if (h === s) return true;
+          if (s.indexOf(h) !== -1 && h.length >= 8) return true;
+          if (h.indexOf(s) !== -1 && s.length >= 8) return true;
+          return false;
+        }
+        function setStatus(kind, label, sub) {
+          statusLabel.textContent = label;
+          if (typeof sub === "string") statusSub.textContent = sub;
+          var color = "#6d8177";
+          if (kind === "listening") color = "#34d399";
+          else if (kind === "speaking") color = "#fbbf24";
+          else if (kind === "blocked") color = "#f87171";
+          else if (kind === "reconnecting") color = "#fbbf24";
+          statusDot.style.background = color;
+          statusLabel.style.color = color;
+          statusDot.classList.toggle("pulse", kind === "listening" || kind === "speaking");
+          document.body.classList.toggle("blocked", kind === "blocked");
+        }
+        function setBridgeState(state, label) {
+          bridgeState.textContent = "Bridge: " + label;
+          bridgeDot.className = "bridgeDot" + (state === "ok" ? " ok" : state === "bad" ? " bad" : "");
+        }
+        function setLastAction(text) { lastAction.textContent = text || ""; }
+
+        // ---------- Conversation rendering ----------
+        function addMessage(from, text, timeRaw, isPending) {
+          emptyState.style.display = "none";
+          var li = document.createElement("li");
+          li.className = "msg " + (from === "Robert" ? "robert" : "Muse") + (isPending ? " pending" : "");
+          var meta = document.createElement("div");
+          meta.className = "meta";
+          var who = document.createElement("span");
+          who.textContent = from === "Robert" ? "You" : "Muse";
+          var time = document.createElement("span");
+          time.className = "time";
+          time.textContent = timeRaw ? displayTime(timeRaw) : nowTimeLabel();
+          meta.appendChild(who);
+          meta.appendChild(time);
+          if (isPending) {
+            var tag = document.createElement("span");
+            tag.className = "pendingTag";
+            tag.textContent = "· sending…";
+            meta.appendChild(tag);
+          }
+          var p = document.createElement("p");
+          p.textContent = text;
+          li.appendChild(meta);
+          li.appendChild(p);
+          messageList.appendChild(li);
+          listEnd.scrollIntoView({ behavior: "smooth", block: "end" });
+          return li;
+        }
+
+        function confirmPending(text) {
+          for (var i = 0; i < pending.length; i++) {
+            if (pending[i].text === text) {
+              var el = pending[i].el;
+              el.classList.remove("pending");
+              var tag = el.querySelector(".pendingTag");
+              if (tag) tag.remove();
+              pending.splice(i, 1);
+              return true;
+            }
+          }
+          return false;
+        }
+
+        // ---------- Bridge: READ via JSONP ----------
+        function bridgeRead() {
+          return new Promise(function (resolve, reject) {
+            if (!bridgeUrl) { reject(new Error("no bridge")); return; }
+            jsonpCounter += 1;
+            var cbName = "vlcb_" + Date.now() + "_" + jsonpCounter;
+            var script = document.createElement("script");
+            var settled = false;
+            var timer = window.setTimeout(function () {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              reject(new Error("timeout"));
+            }, 10000);
+            function cleanup() {
+              window.clearTimeout(timer);
+              try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+              if (script.parentNode) script.parentNode.removeChild(script);
+            }
+            window[cbName] = function (data) {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              resolve(data || {});
+            };
+            script.onerror = function () {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              reject(new Error("load error"));
+            };
+            var sep = bridgeUrl.indexOf("?") === -1 ? "?" : "&";
+            script.src = bridgeUrl + sep + "since=" + cursor + "&callback=" + cbName;
+            document.head.appendChild(script);
+          });
+        }
+
+        // ---------- Bridge: WRITE via no-cors POST ----------
+        function bridgeWrite(text) {
+          return fetch(bridgeUrl, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ text: text })
+          });
+        }
+
+        // ---------- Polling ----------
+        function pollOnce() {
+          if (pollInFlight || !bridgeUrl) return Promise.resolve();
+          pollInFlight = true;
+          return bridgeRead().then(function (data) {
+            pollInFlight = false;
+            setBridgeState("ok", "connected");
+            var rows = (data && data.rows) || [];
+            var silent = !historySynced; // first poll of the session: history only, never spoken
+            var newClaude = [];
+            rows.forEach(function (r) {
+              if (!r || typeof r.row !== "number") return;
+              if (knownRows[r.row]) return;
+              knownRows[r.row] = true;
+              var from = r.from === "Muse" ? "Muse" : "Robert";
+              var text = String(r.text || "");
+              if (!text) return;
+              if (from === "Robert" && confirmPending(text)) {
+                // already on screen as pending; now confirmed
+              } else {
+                addMessage(from, text, r.time, false);
+              }
+              if (from === "Muse" && !silent) newClaude.push(text);
+            });
+            if (data && typeof data.last === "number" && data.last > cursor) {
+              cursor = data.last;
+              saveCursor();
+            }
+            historySynced = true;
+            newClaude.forEach(function (t) { enqueueSpeech(t); });
+          }).catch(function () {
+            pollInFlight = false;
+            setBridgeState("bad", "unreachable — retrying");
+          });
+        }
+
+        function startPolling() {
+          if (pollTimer !== null) return;
+          pollOnce();
+          pollTimer = window.setInterval(pollOnce, 3000);
+        }
+        function stopPolling() {
+          if (pollTimer !== null) { window.clearInterval(pollTimer); pollTimer = null; }
+        }
+
+        // ---------- Speech synthesis ----------
+        function enqueueSpeech(text) {
+          if (!text) return;
+          speechQueue.push(text);
+          speakNext();
+        }
+        function speakNext() {
+          if (speechActive) return;
+          var next = speechQueue.shift();
+          if (next === undefined) {
+            speaking = false;
+            if (running && !userStopped) {
+              setStatus("listening", "Listening", "Just talk. Replies are spoken back automatically.");
+              startRecognition();
+            }
+            return;
+          }
+          speechActive = true;
+          speaking = true;
+          setStatus("speaking", "Speaking", "Listening is paused while the reply plays, so the page never hears itself.");
+          try { if (recognition) recognition.stop(); } catch (e) {}
+          lastSpoken = next;
+          var utter = new SpeechSynthesisUtterance(next);
+          utter.rate = 1;
+          var done = function () {
+            speechActive = false;
+            window.setTimeout(speakNext, 350);
+          };
+          utter.onend = done;
+          utter.onerror = done;
+          try {
+            window.speechSynthesis.speak(utter);
+          } catch (e) {
+            done();
+          }
+        }
+
+        // ---------- Posting Robert's words ----------
+        function postRobert(raw) {
+          var text = String(raw || "").trim();
+          if (!text) return;
+          if (isEcho(text, lastSpoken)) return;
+          if (!bridgeUrl) { showSetup(false); return; }
+          var el = addMessage("Robert", text, null, true);
+          pending.push({ el: el, text: text });
+          setLastAction("Heard you · " + nowTimeLabel() + " — sent to the sheet");
+          bridgeWrite(text).catch(function () {
+            setBridgeState("bad", "send failed — check the bridge address");
+          });
+          // Nudge a poll soon so the confirmation (and any fast reply) lands quickly.
+          window.setTimeout(pollOnce, 1200);
+        }
+
+        // ---------- Speech recognition ----------
+        function getCtor() {
+          return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+        }
+        function startRecognition() {
+          if (!recognition || userStopped || speaking) return;
+          try {
+            recognition.start();
+            if (running) setStatus("listening", "Listening", "Just talk. Replies are spoken back automatically.");
+          } catch (e) { /* already started */ }
+        }
+        function scheduleRestart(ms) {
+          if (restartTimer !== null) window.clearTimeout(restartTimer);
+          restartTimer = window.setTimeout(function () {
+            restartTimer = null;
+            if (!userStopped && !speaking && running) {
+              setStatus("reconnecting", "Reconnecting mic", "The microphone dropped for a moment — bringing it back.");
+              startRecognition();
+            }
+          }, ms);
+        }
+        function buildRecognition() {
+          var Ctor = getCtor();
+          if (!Ctor) return null;
+          var rec = new Ctor();
+          rec.continuous = true;
+          rec.interimResults = false;
+          rec.lang = "en-US";
+          rec.onresult = function (event) {
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+              var result = event.results[i];
+              if (!result || !result.isFinal) continue;
+              var alt = result[0];
+              if (!alt) continue;
+              var transcript = String(alt.transcript || "").trim();
+              if (!transcript) continue;
+              if (speaking) continue;
+              if (isEcho(transcript, lastSpoken)) continue;
+              postRobert(transcript);
+            }
+          };
+          rec.onend = function () {
+            if (!userStopped && !speaking && running) scheduleRestart(400);
+          };
+          rec.onerror = function (event) {
+            var err = event && event.error;
+            if (err === "not-allowed" || err === "service-not-allowed") {
+              userStopped = true;
+              running = false;
+              startBtn.style.display = "";
+              stopBtn.style.display = "none";
+              stopPolling();
+              setStatus("blocked", "Microphone blocked",
+                "Allow mic access using the steps below, then tap Start listening.");
+              return;
+            }
+            if (!userStopped && !speaking && running) {
+              setStatus("reconnecting", "Reconnecting mic", "The microphone dropped for a moment — bringing it back.");
+              scheduleRestart(800);
+            }
+          };
+          return rec;
+        }
+
+        // ---------- Wake lock ----------
+        function requestWakeLock() {
+          try {
+            if (navigator.wakeLock && navigator.wakeLock.request) {
+              navigator.wakeLock.request("screen").then(function (wl) { wakeLock = wl; }).catch(function () {});
+            }
+          } catch (e) {}
+        }
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible" && running) requestWakeLock();
+        });
+
+        // ---------- Start / Stop ----------
+        function handleStart() {
+          if (!getCtor()) return;
+          userStopped = false;
+          running = true;
+          startBtn.style.display = "none";
+          stopBtn.style.display = "";
+          // Unlock audio output (autoplay policy) with a silent utterance.
+          try {
+            var unlock = new SpeechSynthesisUtterance(" ");
+            unlock.volume = 0;
+            window.speechSynthesis.speak(unlock);
+          } catch (e) {}
+          requestWakeLock();
+          if (!recognition) recognition = buildRecognition();
+          setStatus("listening", "Listening", "Just talk. Replies are spoken back automatically.");
+          startRecognition();
+          startPolling();
+        }
+        function handleStop() {
+          userStopped = true;
+          running = false;
+          startBtn.style.display = "";
+          stopBtn.style.display = "none";
+          if (restartTimer !== null) { window.clearTimeout(restartTimer); restartTimer = null; }
+          stopPolling();
+          try { if (recognition) recognition.stop(); } catch (e) {}
+          try { window.speechSynthesis.cancel(); } catch (e) {}
+          speechQueue = [];
+          speechActive = false;
+          speaking = false;
+          if (wakeLock && wakeLock.release) { wakeLock.release().catch(function () {}); wakeLock = null; }
+          setStatus("stopped", "Stopped", "Tap Start listening whenever you are ready to talk again.");
+          setLastAction("");
+        }
+        startBtn.addEventListener("click", handleStart);
+        stopBtn.addEventListener("click", handleStop);
+        testVoiceBtn.addEventListener("click", function () {
+          try {
+            window.speechSynthesis.cancel();
+            var u = new SpeechSynthesisUtterance("Voice Loop is ready. When a reply arrives, you will hear it like this.");
+            window.speechSynthesis.speak(u);
+          } catch (e) {}
+        });
+
+        // ---------- Typed fallback ----------
+        function sendTyped() {
+          var text = typedInput.value.trim();
+          if (!text) return;
+          typedInput.value = "";
+          postRobert(text);
+        }
+        typedSendBtn.addEventListener("click", sendTyped);
+        typedInput.addEventListener("keydown", function (e) { if (e.key === "Enter") sendTyped(); });
+
+        // ---------- Setup ----------
+        function showSetup(editing) {
+          setupPanel.classList.remove("hidden");
+          setupTitle.textContent = editing ? "Bridge settings" : "One-time setup";
+          cancelBridgeBtn.style.display = editing ? "" : "none";
+          bridgeInput.value = bridgeUrl || "";
+          setupError.style.display = "none";
+          if (!editing) mainView.classList.add("hidden");
+          bridgeInput.focus();
+        }
+        function hideSetup() {
+          setupPanel.classList.add("hidden");
+          mainView.classList.remove("hidden");
+        }
+        saveBridgeBtn.addEventListener("click", function () {
+          var val = bridgeInput.value.trim();
+          if (!val || val.indexOf("https://") !== 0 || val.indexOf("/exec") === -1) {
+            setupError.textContent = "That does not look like a bridge address. It should start with https:// and end in /exec — paste the full address Muse gave you.";
+            setupError.style.display = "block";
+            return;
+          }
+          var changed = val !== bridgeUrl;
+          bridgeUrl = val;
+          try { localStorage.setItem("vl_bridge", val); } catch (e) {}
+          if (changed) {
+            // A different bridge is a different sheet: restart the conversation view.
+            cursor = 0;
+            saveCursor();
+            knownRows = {};
+            pending = [];
+            messageList.innerHTML = "";
+            emptyState.style.display = "";
+            historySynced = false;
+          }
+          hideSetup();
+          setBridgeState("", "checking…");
+          pollOnce();
+        });
+        cancelBridgeBtn.addEventListener("click", hideSetup);
+        bridgeSettingsBtn.addEventListener("click", function () { showSetup(true); });
+
+        // ---------- Init ----------
+        if (!getCtor()) {
+          // No speech recognition: still allow the typed path, but be blunt about Chrome.
+          startBtn.textContent = "Speech needs Chrome";
+          startBtn.disabled = true;
+          startBtn.style.opacity = "0.55";
+          setStatus("blocked", "Chrome required",
+            "Hands-free listening is built into Chrome. Open this page in Chrome on desktop or Android. You can still type a message below.");
+        }
+        if (bridgeUrl) {
+          hideSetup();
+          setBridgeState("", "checking…");
+          pollOnce(); // silent history sync; nothing is spoken from this poll
+        } else {
+          showSetup(false);
+        }
+      })();
+    </script>
+  </body>
+</html>
